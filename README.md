@@ -41,11 +41,9 @@ How to setup streaming replication in PostgreSQL step by step on Debian
     ```
     sudo -i -u postgres
     psql
-    CREATE DATABASE testdb;
     CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD 'admin@123';
-    SELECT pg_catalog.set_config('search_path', '', false);
-    CREATE ROLE replicator PASSWORD 'md5f259c3f62ade99c48b5929b2a0ad6d3c' NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT LOGIN REPLICATION;
-    $ exit
+    \q
+    exit
     ```
 
   * 1.3. Then enter the following entry at the end of the /etc/postgresql/13/main/pg_hba.conf client authentication configuration file with the database field set to replication as shown in the screenshot.
@@ -57,6 +55,7 @@ How to setup streaming replication in PostgreSQL step by step on Debian
   * 1.4. Now restart the Postgres12 service using the following systemctl command to apply the changes.
 
     ```
+    sudo ufw allow 5432/tcp
     sudo systemctl restart postgresql
     ```
 
@@ -72,9 +71,10 @@ How to setup streaming replication in PostgreSQL step by step on Debian
         sudo apt install -y postgresql postgresql-client
         sudo systemctl start postgresql && sudo systemctl enable postgresql
 
-  * 2.1. Next, you need to make a base backup of the master server from the standby server; this helps to bootstrap the standby server. You need to stop the postgresql 12 service on the standby server, switch to the postgres user account, backup the data directory (/var/lib/pgsql/12/data/), then delete everything under it as shown, before taking the base backup.
+  * 2.1. Next, you need to make a base backup of the master server from the standby server; this helps to bootstrap the standby server. You need to stop the postgresql 13 service on the standby server, switch to the postgres user account, backup the data directory (/var/lib/pgsql/13/data/), then delete everything under it as shown, before taking the base backup.
 
     ```
+    sudo ufw allow 5432/tcp
     systemctl stop postgresql
 	su - postgres cp -R /var/lib/postgresql/13/main/ /var/lib/postgresql/13/main_old/
 	rm -rf /var/lib/postgresql/13/main/
@@ -83,7 +83,7 @@ How to setup streaming replication in PostgreSQL step by step on Debian
   * 2.2. Then use the pg_basebackup tool to take the base backup with the right ownership (the database system user i.e Postgres, within the Postgres user account) and with the right permissions.
 
     ```
-    $ root@slave:~$ su – postgres
+    $ root@slave:~$ su –i -u postgres
     $ postgres@slave:/home/vagrant# pg_basebackup -h 192.168.33.33 -D /var/lib/postgresql/13/main/ -U replicator -P -v -R -X stream -C -S slaveslot1
 	
     pg_basebackup: initiating base backup, waiting for checkpoint to complete
@@ -125,7 +125,7 @@ How to setup streaming replication in PostgreSQL step by step on Debian
   * 2.3. When the backup process is done, the new data directory on the standby server should look like that in the screenshot. A standby.signal is created and the connection settings are appended to postgresql.auto.conf. You can list its contents using the ls command.
 
     ```
-    # root@slave:~# ls -l /var/lib/postgresql/12/main
+    # root@slave:~# ls -l /var/lib/postgresql/13/main
     total 88
     -rw------- 1 postgres postgres    3 May 31 01:46 PG_VERSION
     -rw------- 1 postgres postgres  224 May 31 01:46 backup_label.old
@@ -157,7 +157,7 @@ How to setup streaming replication in PostgreSQL step by step on Debian
   * 2.4. Now back on the master server, you should be able to see the replication slot called slaveslot1 when you open the pg_replication_slots view as follows.
 
     ```
-    $ root@master:/home/vagrant# su - postgres
+    $ root@master:/home/vagrant# sudo -i -u postgres
     $ postgres@master:~$ psql -c "SELECT * FROM pg_replication_slots;"
      slot_name  | plugin | slot_type | datoid | database | temporary | active | active_pid | xmin | catalog_xmin | restart_lsn | confirmed_flush_lsn
     ------------+--------+-----------+--------+----------+-----------+--------+------------+------+--------------+-------------+---------------------
@@ -189,7 +189,7 @@ How to setup streaming replication in PostgreSQL step by step on Debian
   * 3.1. Once a connection is established successfully between the master and the standby, you will see a WAL receiver process in the standby server with a status of streaming, you can check this using the pg_stat_wal_receiver view.
 
     ```
-    # root@slave:~# su - postgres
+    # root@slave:~# sudo -i -u postgres
     # postgres@slave:~$ psql -c "\x" -c "SELECT * FROM pg_stat_wal_receiver;"
       Expanded display is on.
       -[ RECORD 1 ]---------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -278,10 +278,10 @@ How to setup streaming replication in PostgreSQL step by step on Debian
       synchronous_standby_names = '*'
     ```
 
-  * Then reload the PostgreSQL 12 service to apply the new changes.
+  * Then reload the PostgreSQL 13 service to apply the new changes.
 
     ```
-    # systemctl reload postgresql@12-main.service
+    # systemctl reload postgresql
     ```
 
   * Now when you query the WAL sender process on the primary server once more, it should show a state of streaming and a sync_state of sync.
@@ -312,8 +312,8 @@ How to setup streaming replication in PostgreSQL step by step on Debian
     reply_time       | 2020-05-31 02:48:43.264218+00
     ```
 
-  We have come to the end of this guide. We have shown how to set up PostgreSQL 12 master-standby database streaming replication in Debian Buster. We also covered how to enable synchronous replication in a PostgreSQL database cluster.
+  We have come to the end of this guide. We have shown how to set up PostgreSQL 13 master-standby database streaming replication in Debian Buster. We also covered how to enable synchronous replication in a PostgreSQL database cluster.
 
-  There are many uses of replication and you can always pick a solution that meets your IT environment and/or application-specific requirements. For more detail, go to [Log-Shipping Standby Servers](https://www.postgresql.org/docs/12/warm-standby.html) in the PostgreSQL 12 documentation.
+  There are many uses of replication and you can always pick a solution that meets your IT environment and/or application-specific requirements. For more detail, go to [Log-Shipping Standby Servers](https://www.postgresql.org/docs/13/warm-standby.html) in the PostgreSQL 13 documentation.
 
-  * References: https://www.postgresql.org/docs/12/warm-standby.html
+  * References: https://www.postgresql.org/docs/13/warm-standby.html
