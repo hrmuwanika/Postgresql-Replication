@@ -18,8 +18,8 @@ How to setup streaming replication in PostgreSQL step by step on Debian
 
 ### Configuring the PostgreSQL Master Database Server
      
-	 #--------------------------------------------------
-     # Install PostgreSQL Server
+     #--------------------------------------------------
+     # Install Postgresql - Master
      #--------------------------------------------------
      sudo apt -y install gnupg gnupg2    
      sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ buster-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
@@ -32,17 +32,19 @@ How to setup streaming replication in PostgreSQL step by step on Debian
 
     ```
     sed  -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/"  /etc/postgresql/*/main/postgresql.conf
+    
     ```
-
-  The ALTER SYSTEM SET SQL command is a powerful feature to change a server’s configuration parameters, directly with a SQL query. The configurations are saved in the postgresql.auto.conf file located at the root of data folder (e.g /var/lib/postgresql/12/main) and read addition to those stored in postgresql.conf. But configurations in the former take precedence over those in the later and other related files.
+    
+  The ALTER SYSTEM SET SQL command is a powerful feature to change a server’s configuration parameters, directly with a SQL query. The configurations are saved in the postgresql.auto.conf file located at the root of data folder (e.g /var/lib/postgresql/13/main) and read addition to those stored in postgresql.conf. But configurations in the former take precedence over those in the later and other related files.
 
   * 1.2. Then create a replication role that will be used for connections from the standby server to the master server, using the createuser program. In the following command, the -P flag prompts for a password for the new role and -e echoes the commands that createuser generates and sends to the database server.
 
     ```
     sudo -i -u postgres
-    psql
-    CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD 'admin@123';
-    \q
+    $ psql
+    postgres=# CREATE ROLE replicator LOGIN REPLICATION ENCRYPTED PASSWORD 'admin@123';
+    postgres=# SELECT * FROM pg_create_physical_replication_slot('replicator');
+    postgres=# \q
     exit
     ```
 
@@ -50,20 +52,20 @@ How to setup streaming replication in PostgreSQL step by step on Debian
 
     ```
 	echo -e "host    replication     replicator            192.168.33.44/32            md5" >> /etc/postgresql/*/main/pg_hba.conf
-	echo -e "host       all              all               95.179.170.225/32            md5" >> /etc/postgresql/*/main/pg_hba.conf
+	echo -e "host       all              all               192.168.33.44/32            md5" >> /etc/postgresql/*/main/pg_hba.conf
     ```
 
   * 1.4. Now restart the Postgres12 service using the following systemctl command to apply the changes.
 
     ```
-    sudo ufw allow 5432/tcp
     sudo systemctl restart postgresql
+    sudo ufw allow 5432/tcp
     ```
 
 ### Configuring the PostgreSQL Standby Server
 
     #--------------------------------------------------
-        # Install PostgreSQL Server
+        # Install PostgreSQL - Standby
         #--------------------------------------------------
         sudo apt -y install gnupg gnupg2    
         sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ buster-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
@@ -71,21 +73,27 @@ How to setup streaming replication in PostgreSQL step by step on Debian
         sudo apt update && sudo apt upgrade -y
         sudo apt install -y postgresql postgresql-client
         sudo systemctl start postgresql && sudo systemctl enable postgresql
+	sudo ufw allow 5432/tcp
 
   * 2.1. Next, you need to make a base backup of the master server from the standby server; this helps to bootstrap the standby server. You need to stop the postgresql 13 service on the standby server, switch to the postgres user account, backup the data directory (/var/lib/pgsql/13/data/), then delete everything under it as shown, before taking the base backup.
+  
+  Standby configuration
+  
+    ```
+    sed  -i "s/#hot_standby = on/hot_standby = on/"  /etc/postgresql/*/main/postgresql.conf
+    
+    ```
 
     ```
-      sudo ufw allow 5432/tcp
       systemctl stop postgresql
-      sudo -i -u postgres cp -R /var/lib/postgresql/13/main/ /var/lib/postgresql/13/main_old/
-      rm -rf /var/lib/postgresql/13/main/
+      sudo mv /var/lib/postgresql/13/main/ /var/lib/postgresql/13/main.bak/
     ```
 
   * 2.2. Then use the pg_basebackup tool to take the base backup with the right ownership (the database system user i.e Postgres, within the Postgres user account) and with the right permissions.
 
     ```
-    $ root@slave:~$ sudo –i -u postgres
-    $ postgres@slave:/home/vagrant# pg_basebackup -h 192.168.33.33 -D /var/lib/postgresql/13/main/ -U replicator -P -v -R -X stream -C -S slaveslot1
+    $ sudo –i -u postgres
+    $ pg_basebackup -h 192.168.33.33 -D /var/lib/postgresql/13/main/ -U replicator -P -v -R -X stream -C -S replicator
 	
     pg_basebackup: initiating base backup, waiting for checkpoint to complete
     pg_basebackup: checkpoint completed
@@ -97,19 +105,12 @@ How to setup streaming replication in PostgreSQL step by step on Debian
     pg_basebackup: waiting for background process to finish streaming ...
     pg_basebackup: syncing data to disk ...
     pg_basebackup: base backup completed
+    
     ```
-
-
-  if got the error `could not send replication command "CREATE_REPLICATION_SLOT "slaveslot1" PHYSICAL RESERVE_WAL": ERROR:  replication slot "slaveslot1" already exists`, need to brack to master server to delete it `pgstandby1`
-
     ```
-    $ postgres=# SELECT pg_drop_replication_slot('slaveslot1');
-     pg_drop_replication_slot
-    --------------------------
-
-    (1 row)
+    sudo chown postgres:postgres /var/lib/postgresql/13/main/
+    
     ```
-
 
   In the following command, the option:
 
@@ -126,7 +127,7 @@ How to setup streaming replication in PostgreSQL step by step on Debian
   * 2.3. When the backup process is done, the new data directory on the standby server should look like that in the screenshot. A standby.signal is created and the connection settings are appended to postgresql.auto.conf. You can list its contents using the ls command.
 
     ```
-    # root@slave:~# ls -l /var/lib/postgresql/13/main
+    # ls -l /var/lib/postgresql/13/main
     total 88
     -rw------- 1 postgres postgres    3 May 31 01:46 PG_VERSION
     -rw------- 1 postgres postgres  224 May 31 01:46 backup_label.old
@@ -155,14 +156,14 @@ How to setup streaming replication in PostgreSQL step by step on Debian
 
   A replication slave will run in “Hot Standby” mode if the hot_standby parameter is set to on (the default value) in postgresql.conf and there is a standby.signal file present in the data directory.
 
-  * 2.4. Now back on the master server, you should be able to see the replication slot called slaveslot1 when you open the pg_replication_slots view as follows.
+  * 2.4. Now back on the master server, you should be able to see the replication slot called replicator when you open the pg_replication_slots view as follows.
 
     ```
-    $ root@master:/home/vagrant# sudo -i -u postgres
-    $ postgres@master:~$ psql -c "SELECT * FROM pg_replication_slots;"
+    # sudo -i -u postgres
+    $ psql -c "SELECT * FROM pg_replication_slots;"
      slot_name  | plugin | slot_type | datoid | database | temporary | active | active_pid | xmin | catalog_xmin | restart_lsn | confirmed_flush_lsn
     ------------+--------+-----------+--------+----------+-----------+--------+------------+------+--------------+-------------+---------------------
-     slaveslot1 |        | physical  |        |          | f         | f      |            |      |              | 0/2000000   |
+     replicator |        | physical  |        |          | f         | f      |            |      |              | 0/2000000   |
     (1 row)
     ```
 
@@ -170,12 +171,14 @@ How to setup streaming replication in PostgreSQL step by step on Debian
   * 2.5. To view the connection settings appended in the postgresql.conf file on Slave
 
     ```
-    $ root@slave:~# cat /var/lib/postgresql/13/main/postgresql.conf
+    # vim /var/lib/postgresql/13/main/postgresql.conf
       # Do not edit this file manually!
       # It will be overwritten by the ALTER SYSTEM command.
       listen_addresses = '*'
-      primary_conninfo = 'user=replicator password=admin@123 host=192.168.33.33 port=5432 sslmode=prefer sslcompression=0 gssencmode=prefer krbsrvname=postgres target_session_attrs=any'
-      primary_slot_name = 'slaveslot1'
+      standby_mode = 'on'
+      primary_conninfo = 'host=192.168.33.33 port=5432 user=replicator password=admin@123'
+      primary_slot_name = 'replicator'
+      trigger_file = '/var/lib/postgresql/13/main/failover.trigger'
     $ exit
     ```
 
@@ -213,7 +216,7 @@ How to setup streaming replication in PostgreSQL step by step on Debian
   and a corresponding WAL sender process in the master/primary server with a state of streaming and a sync_state of async, you can check this pg_stat_replication pg_stat_replication view.
 
     ```
-    # postgres@master:~$ psql -c "\x" -c "SELECT * FROM pg_stat_replication;"
+    $ psql -c "\x" -c "SELECT * FROM pg_stat_replication;"
       Expanded display is on.
       -[ RECORD 1 ]----+------------------------------
       pid              | 6139
