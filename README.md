@@ -50,6 +50,7 @@ How to setup streaming replication in PostgreSQL step by step on Debian
 
     ```
 	echo -e "host    replication     replicator            192.168.33.44/32            md5" >> /etc/postgresql/*/main/pg_hba.conf
+	echo -e "host       all              all               95.179.170.225/32            md5" >> /etc/postgresql/*/main/pg_hba.conf
     ```
 
   * 1.4. Now restart the Postgres12 service using the following systemctl command to apply the changes.
@@ -74,16 +75,16 @@ How to setup streaming replication in PostgreSQL step by step on Debian
   * 2.1. Next, you need to make a base backup of the master server from the standby server; this helps to bootstrap the standby server. You need to stop the postgresql 13 service on the standby server, switch to the postgres user account, backup the data directory (/var/lib/pgsql/13/data/), then delete everything under it as shown, before taking the base backup.
 
     ```
-    sudo ufw allow 5432/tcp
-    systemctl stop postgresql
-	su - postgres cp -R /var/lib/postgresql/13/main/ /var/lib/postgresql/13/main_old/
-	rm -rf /var/lib/postgresql/13/main/
+      sudo ufw allow 5432/tcp
+      systemctl stop postgresql
+      sudo -i -u postgres cp -R /var/lib/postgresql/13/main/ /var/lib/postgresql/13/main_old/
+      rm -rf /var/lib/postgresql/13/main/
     ```
 
   * 2.2. Then use the pg_basebackup tool to take the base backup with the right ownership (the database system user i.e Postgres, within the Postgres user account) and with the right permissions.
 
     ```
-    $ root@slave:~$ su –i -u postgres
+    $ root@slave:~$ sudo –i -u postgres
     $ postgres@slave:/home/vagrant# pg_basebackup -h 192.168.33.33 -D /var/lib/postgresql/13/main/ -U replicator -P -v -R -X stream -C -S slaveslot1
 	
     pg_basebackup: initiating base backup, waiting for checkpoint to complete
