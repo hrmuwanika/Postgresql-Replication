@@ -85,9 +85,8 @@ How to setup streaming replication in PostgreSQL step by step on Debian
 
     ```
       systemctl stop postgresql
-      sudo -i -u postgres
-      $ cp -R /var/lib/postgresql/13/main/ /var/lib/postgresql/13/main_old/
-      $ rm -rf /var/lib/postgresql/13/main/*
+      cp -R /var/lib/postgresql/13/main/ /var/lib/postgresql/13/main_old/
+      rm -rf /var/lib/postgresql/13/main
     ```
 
   * 2.2. Then use the pg_basebackup tool to take the base backup with the right ownership (the database system user i.e Postgres, within the Postgres user account) and with the right permissions.
