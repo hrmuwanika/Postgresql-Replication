@@ -43,7 +43,6 @@ How to setup streaming replication in PostgreSQL step by step on Debian
     sudo -i -u postgres
     $ psql
     postgres=# CREATE ROLE replicator LOGIN REPLICATION ENCRYPTED PASSWORD 'admin@123';
-    postgres=# SELECT * FROM pg_create_physical_replication_slot('replicator');
     postgres=# \q
     exit
     ```
@@ -86,7 +85,9 @@ How to setup streaming replication in PostgreSQL step by step on Debian
 
     ```
       systemctl stop postgresql
-      sudo mv /var/lib/postgresql/13/main/ /var/lib/postgresql/13/main.bak/
+      sudo -i -u postgres
+      $ cp -R /var/lib/postgresql/13/main/ /var/lib/postgresql/13/main_old/
+      $ rm -rf /var/lib/postgresql/13/main/*
     ```
 
   * 2.2. Then use the pg_basebackup tool to take the base backup with the right ownership (the database system user i.e Postgres, within the Postgres user account) and with the right permissions.
