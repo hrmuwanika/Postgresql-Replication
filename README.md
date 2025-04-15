@@ -1,19 +1,19 @@
 # Postgresql-Replication
 How to setup streaming replication in PostgreSQL step by step on Debian
 
-## How To Configure PostgreSQL 13 Streaming Replication in Debian Buster
+## How To Configure PostgreSQL 17 Streaming Replication in Debian Buster
 
 * Build two boxes and install Debian Buster
 
-  - box1: master  -> Debian Buster with PG 13
+  - box1: master  -> Debian Buster with PG 17
     - static ip: 192.168.33.33
     - hostname: master
 	
-  - box2: slave   -> Debian Buster with PG 13
+  - box2: slave   -> Debian Buster with PG 17
     - static ip: 192.168.33.44
     - hostname: slave
 
-* How to setup the boxes with Debian Buster and PG 13
+* How to setup the boxes with Debian Buster and PG 17
   
 
 ### Configuring the PostgreSQL Master Database Server
@@ -21,10 +21,13 @@ How to setup streaming replication in PostgreSQL step by step on Debian
      #--------------------------------------------------
      # Install Postgresql - Master
      #--------------------------------------------------
+     sudo apt install -y curl ca-certificates
+     
      sudo apt -y install gnupg gnupg2    
      sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ buster-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
      wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
      sudo apt update && sudo apt upgrade -y
+     
      sudo apt install -y postgresql postgresql-client
      sudo systemctl start postgresql && sudo systemctl enable postgresql
 	 
