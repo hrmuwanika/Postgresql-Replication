@@ -1,7 +1,7 @@
 # Postgresql-Replication
-How to setup streaming replication in PostgreSQL step by step on Debian
+How to setup streaming replication in PostgreSQL step by step on Ubuntu 24.04 LTS
 
-## How To Configure PostgreSQL 17 Streaming Replication in Debian Buster
+## How To Configure PostgreSQL 17 Streaming Replication in Ubuntu 24.04 LTS
 
 * Build two boxes and install Debian Buster
 
