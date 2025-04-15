@@ -1,20 +1,15 @@
-# Postgresql-Replication
-How to setup streaming replication in PostgreSQL step by step on Ubuntu 24.04 LTS
+# PostgreSQL — Physical/Streaming Replication setup
 
-## How To Configure PostgreSQL 17 Streaming Replication in Ubuntu 24.04 LTS
+## Build two boxes and install Ubuntu 24.04 LTS
 
-* Build two boxes and install Debian Buster
-
-  - box1: master  -> Debian Buster with PG 17
+  - box1: master  -> Ubuntu 24.04 LTS with PG 17
     - static ip: 192.168.33.33
     - hostname: master
 	
-  - box2: slave   -> Debian Buster with PG 17
+  - box2: slave   -> Ubuntu 24.04 LTS with PG 17
     - static ip: 192.168.33.44
     - hostname: slave
 
-* How to setup the boxes with Debian Buster and PG 17
-  
 
 ### Configuring the PostgreSQL Master Database Server
      
@@ -24,7 +19,7 @@ How to setup streaming replication in PostgreSQL step by step on Ubuntu 24.04 LT
      sudo apt update && sudo apt upgrade -y
      sudo apt autoremove
      
-     sudo apt install curl ca-certificates
+     sudo apt install -y nano curl ca-certificates ufw
      sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
      sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
      sudo apt update
@@ -41,7 +36,7 @@ How to setup streaming replication in PostgreSQL step by step on Ubuntu 24.04 LT
     
     ```
     
-  The ALTER SYSTEM SET SQL command is a powerful feature to change a server’s configuration parameters, directly with a SQL query. The configurations are saved in the postgresql.auto.conf file located at the root of data folder (e.g /var/lib/postgresql/13/main) and read addition to those stored in postgresql.conf. But configurations in the former take precedence over those in the later and other related files.
+  The ALTER SYSTEM SET SQL command is a powerful feature to change a server’s configuration parameters, directly with a SQL query. The configurations are saved in the postgresql.auto.conf file located at the root of data folder (e.g /var/lib/postgresql/17/main) and read addition to those stored in postgresql.conf. But configurations in the former take precedence over those in the later and other related files.
 
   * 1.2. Then create a replication role that will be used for connections from the standby server to the master server, using the createuser program. In the following command, the -P flag prompts for a password for the new role and -e echoes the commands that createuser generates and sends to the database server.
 
@@ -60,14 +55,14 @@ How to setup streaming replication in PostgreSQL step by step on Ubuntu 24.04 LT
 	echo -e "host       all              all               192.168.33.44/32            md5" >> /etc/postgresql/*/main/pg_hba.conf
     ```
 
-  * 1.4. Now restart the Postgres12 service using the following systemctl command to apply the changes.
+  * 1.4. Now restart the Postgres17 service using the following systemctl command to apply the changes.
 
     ```
     sudo systemctl restart postgresql
     sudo ufw allow 5432/tcp
     ```
 
-### Configuring the PostgreSQL Standby Server
+### Configuring the PostgreSQL Standby Database Server
 
      #--------------------------------------------------
      # Install PostgreSQL - Standby
@@ -75,7 +70,7 @@ How to setup streaming replication in PostgreSQL step by step on Ubuntu 24.04 LT
      sudo apt update && sudo apt upgrade -y
      sudo apt autoremove
      
-     sudo apt install curl ca-certificates
+     sudo apt install -y nano curl ca-certificates ufw
      sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
      sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
      sudo apt update
