@@ -21,15 +21,18 @@ How to setup streaming replication in PostgreSQL step by step on Debian
      #--------------------------------------------------
      # Install Postgresql - Master
      #--------------------------------------------------
-     sudo apt install -y curl ca-certificates
-     
-     sudo apt -y install gnupg gnupg2    
-     sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ buster-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
-     wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
      sudo apt update && sudo apt upgrade -y
+     sudo apt autoremove
      
-     sudo apt install -y postgresql postgresql-client
+     sudo apt install curl ca-certificates
+     sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+     sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+     sudo apt update
+     
+     sudo apt install -y postgresql-17
      sudo systemctl start postgresql && sudo systemctl enable postgresql
+
+     sudo ufw allow 5432/tcp
 	 
   * 1.1. On the master server, switch to the postgres system account and configure the IP address(es) on which the master server will listen to for connections from clients.
 
@@ -50,10 +53,10 @@ How to setup streaming replication in PostgreSQL step by step on Debian
     exit
     ```
 
-  * 1.3. Then enter the following entry at the end of the /etc/postgresql/13/main/pg_hba.conf client authentication configuration file with the database field set to replication as shown in the screenshot.
+  * 1.3. Then enter the following entry at the end of the /etc/postgresql/17/main/pg_hba.conf client authentication configuration file with the database field set to replication as shown in the screenshot.
 
     ```
-	echo -e "host    replication     replicator            192.168.33.44/32            md5" >> /etc/postgresql/*/main/pg_hba.conf
+	echo -e "host    replication     replicator            192.168.33.33/32            md5" >> /etc/postgresql/*/main/pg_hba.conf
 	echo -e "host       all              all               192.168.33.44/32            md5" >> /etc/postgresql/*/main/pg_hba.conf
     ```
 
@@ -66,18 +69,23 @@ How to setup streaming replication in PostgreSQL step by step on Debian
 
 ### Configuring the PostgreSQL Standby Server
 
-    #--------------------------------------------------
-        # Install PostgreSQL - Standby
-        #--------------------------------------------------
-        sudo apt -y install gnupg gnupg2    
-        sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ buster-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
-        wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-        sudo apt update && sudo apt upgrade -y
-        sudo apt install -y postgresql postgresql-client
-        sudo systemctl start postgresql && sudo systemctl enable postgresql
-	sudo ufw allow 5432/tcp
+     #--------------------------------------------------
+     # Install PostgreSQL - Standby
+     #--------------------------------------------------
+     sudo apt update && sudo apt upgrade -y
+     sudo apt autoremove
+     
+     sudo apt install curl ca-certificates
+     sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+     sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+     sudo apt update
+     
+     sudo apt install -y postgresql-17
+     sudo systemctl start postgresql && sudo systemctl enable postgresql
+	
+     sudo ufw allow 5432/tcp
 
-  * 2.1. Next, you need to make a base backup of the master server from the standby server; this helps to bootstrap the standby server. You need to stop the postgresql 13 service on the standby server, switch to the postgres user account, backup the data directory (/var/lib/pgsql/13/data/), then delete everything under it as shown, before taking the base backup.
+  * 2.1. Next, you need to make a base backup of the master server from the standby server; this helps to bootstrap the standby server. You need to stop the postgresql 17 service on the standby server, switch to the postgres user account, backup the data directory (/var/lib/pgsql/17/data/), then delete everything under it as shown, before taking the base backup.
   
   Standby configuration
   
@@ -88,15 +96,15 @@ How to setup streaming replication in PostgreSQL step by step on Debian
 
     ```
       systemctl stop postgresql
-      cp -R /var/lib/postgresql/13/main/ /var/lib/postgresql/13/main_old/
-      rm -rf /var/lib/postgresql/13/main
+      cp -R /var/lib/postgresql/17/main/ /var/lib/postgresql/17/main_old/
+      rm -rf /var/lib/postgresql/17/main
     ```
 
   * 2.2. Then use the pg_basebackup tool to take the base backup with the right ownership (the database system user i.e Postgres, within the Postgres user account) and with the right permissions.
 
     ```
     $ sudo –i -u postgres
-    $ pg_basebackup -h 192.168.33.33 -D /var/lib/postgresql/13/main/ -U replicator -P -v -R -X stream -C -S replicator
+    $ pg_basebackup -h 192.168.33.33 -D /var/lib/postgresql/17/main/ -U replicator -P -v -R -X stream -C -S replicator
 	
     pg_basebackup: initiating base backup, waiting for checkpoint to complete
     pg_basebackup: checkpoint completed
@@ -111,7 +119,7 @@ How to setup streaming replication in PostgreSQL step by step on Debian
     
     ```
     ```
-    sudo chown postgres:postgres /var/lib/postgresql/13/main/
+    sudo chown postgres:postgres /var/lib/postgresql/17/main/
     
     ```
 
@@ -130,7 +138,7 @@ How to setup streaming replication in PostgreSQL step by step on Debian
   * 2.3. When the backup process is done, the new data directory on the standby server should look like that in the screenshot. A standby.signal is created and the connection settings are appended to postgresql.auto.conf. You can list its contents using the ls command.
 
     ```
-    # ls -l /var/lib/postgresql/13/main
+    # ls -l /var/lib/postgresql/17/main
     total 88
     -rw------- 1 postgres postgres    3 May 31 01:46 PG_VERSION
     -rw------- 1 postgres postgres  224 May 31 01:46 backup_label.old
@@ -174,7 +182,7 @@ How to setup streaming replication in PostgreSQL step by step on Debian
   * 2.5. To view the connection settings appended in the postgresql.conf file on Slave
 
     ```
-    # vim /var/lib/postgresql/13/main/postgresql.conf
+    # vim /var/lib/postgresql/17/main/postgresql.conf
       # Do not edit this file manually!
       # It will be overwritten by the ALTER SYSTEM command.
       listen_addresses = '*'
@@ -285,7 +293,7 @@ How to setup streaming replication in PostgreSQL step by step on Debian
       synchronous_standby_names = '*'
     ```
 
-  * Then reload the PostgreSQL 13 service to apply the new changes.
+  * Then reload the PostgreSQL 17 service to apply the new changes.
 
     ```
     # systemctl reload postgresql
